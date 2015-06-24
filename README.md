@@ -35,13 +35,8 @@ Helpful queries
 ```
 MATCH ()-[r:IS_PARTICIPANT]->() set r.active=false RETURN r;
 ```
-#### frisbi-api  
+
 build and start `yodals-api`. In `yodals-api` run `sbt` and then `rf1`  
-
-#### frisbi-web-client
-build and start `yodals-web-client`. In `yodals-web-client` run `npm update` and then `gulp`
-
-
 
 
 

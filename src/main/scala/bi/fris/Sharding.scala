@@ -1,29 +1,23 @@
 package bi.fris
-import scala.concurrent.duration._
-import com.typesafe.config.ConfigFactory
-import akka.actor.ActorIdentity
-import akka.actor.ActorPath
-import akka.actor.ActorSystem
-import akka.actor.Identify
-import akka.actor.Props
-import akka.contrib.pattern.ClusterSharding
-import akka.pattern.ask
-import akka.persistence.journal.leveldb.SharedLeveldbJournal
-import akka.persistence.journal.leveldb.SharedLeveldbStore
-import akka.util.Timeout
 
-import akka.actor.{ ActorRef, ActorSystem, Props }
-import akka.contrib.pattern.{ ClusterSharding, ShardRegion }
+import akka.cluster.sharding.{ClusterShardingSettings, ClusterSharding, ShardRegion}
+import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.event.Logging
 import akka.pattern.ask
 import akka.util.Timeout
+
 import scala.concurrent.Future
 
 trait Sharding {
 
   def start(): Unit = {
     Logging(system, getClass).info("Starting shard region for type [{}]", typeName)
-    ClusterSharding(system).start(typeName, Some(props), idExtractor, shardResolver)
+    ClusterSharding(system).start(
+      typeName,
+      props,
+      ClusterShardingSettings(system),
+      idExtractor,
+      shardResolver)
   }
 
   def tellEntry(name: String, message: Any)(implicit sender: ActorRef): Unit =
@@ -38,11 +32,11 @@ trait Sharding {
 
   protected def system: ActorSystem
 
-  private def idExtractor: ShardRegion.IdExtractor = {
+  private def idExtractor: ShardRegion.ExtractEntityId = {
     case (name: String, payload) => (name, payload)
   }
 
-  private def shardResolver: ShardRegion.ShardResolver = {
+  private def shardResolver: ShardRegion.ExtractShardId = {
     case (name: String, _) => (math.abs(name.hashCode) % 100).toString
   }
 

@@ -6,7 +6,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import bi.fris.{JSONWebToken, SettingsActor, Sharding}
 import bi.fris.account.AccountProtocol._
 import akka.actor.{Actor, ActorLogging, ActorRef, ExtendedActorSystem, Extension, ExtensionKey, Props}
-import akka.stream.ActorFlowMaterializer
+import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
 import common.Hashing
 
@@ -15,7 +15,7 @@ object AccountsConsumer extends ExtensionKey[AccountsConsumer]
 
 class AccountsConsumer(protected val system: ExtendedActorSystem) extends Extension with Sharding {
 
-  implicit val materializer = ActorFlowMaterializer()(system)
+  implicit val materializer = ActorMaterializer()(system)
   def consume(source: Source[AccountEvent, Unit])(implicit sender: ActorRef) {
     source.runForeach { x =>
       tellEntry("Accounts", x)

@@ -4,7 +4,7 @@ import akka.actor.{Actor, ActorLogging, Props}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives._
 import akka.pattern.pipe
-import akka.stream.scaladsl.ImplicitFlowMaterializer
+import akka.stream.scaladsl.ImplicitMaterializer
 import akka.util.Timeout
 import bi.fris.account.AccountRoute
 import bi.fris.email.EmailRoute
@@ -18,7 +18,7 @@ import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.duration.DurationInt
 
 class HttpService(interface: String, port: Int)
-  extends Actor with ActorLogging with SettingsActor with ImplicitFlowMaterializer with UserRoute
+  extends Actor with ActorLogging with SettingsActor with ImplicitMaterializer with UserRoute
   with TopicsRoute
   with AccountRoute
   with EmailRoute

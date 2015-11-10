@@ -1,36 +1,36 @@
 package bi.fris.facebook
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import akka.contrib.pattern.{DistributedPubSubExtension, DistributedPubSubMediator}
+import akka.cluster.pubsub.{DistributedPubSub, DistributedPubSubMediator}
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.server.Directives._
-import akka.stream.FlowMaterializer
-import akka.stream.actor.ActorPublisher
 import akka.stream.scaladsl.Source
+import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.util.Timeout
 import bi.fris.TokenHttpAuthenticationDirectives.TokenAuth._
 import bi.fris.account.AccountProtocol.Profile
 import bi.fris.account.{AccountView, Accounts}
 import bi.fris.facebook.FacebookProtocol.{AuthCallback, AuthUrlObtained, FacebookAuthEvent, GetAuthUrl, _}
 import bi.fris.{CORSDirectives, Settings, Signature, common}
-import de.heikoseeberger.akkasse.{EventPublisher, EventStreamMarshalling, ServerSentEvent}
+import de.heikoseeberger.akkasse.{EventStreamMarshalling, WithHeartbeats}
 import play.api.libs.json.Json
 
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
-trait FacebookRoute extends CORSDirectives with EventStreamMarshalling with Signature {
+trait FacebookRoute extends CORSDirectives with Signature {
   this: Actor =>
 
   import common.Html._
 
-  private val mediator = DistributedPubSubExtension(context.system).mediator
+  private val mediator = DistributedPubSub(context.system).mediator
   private val fb = FacebookClient(context.system)
   private val accounts = Accounts(context.system)
   private val accountView = AccountView(context.system)
 
-  def facebookRoute(implicit ec: ExecutionContext, mat: FlowMaterializer, askTimeout: Timeout) = {
+  def facebookRoute(implicit ec: ExecutionContext, mat: ActorMaterializer, askTimeout: Timeout) = {
+    import EventStreamMarshalling._
     respondWithCors {
       path("facebook" / "authorization") {
         optionsForCors ~
@@ -45,9 +45,12 @@ trait FacebookRoute extends CORSDirectives with EventStreamMarshalling with Sign
           get {
             parameters('sessionId) { sessionId =>
               complete {
-                Source(ActorPublisher[ServerSentEvent](
-                  context.actorOf(FacebookEventPublisher.props(mediator, fb, accounts, accountView, sessionId)))
-                )
+                Source.actorRef[FacebookAuthEvent](100, OverflowStrategy.dropHead)
+                  .map(FacebookProtocol.flowEventToServerSentEvent)
+                  .via(WithHeartbeats(5.second))
+                  .mapMaterializedValue(source =>
+                    context.actorOf(FacebookEventPublisher.props(mediator, fb, accounts, accountView, sessionId, source))
+                  )
               }
             }
           }
@@ -65,8 +68,8 @@ trait FacebookRoute extends CORSDirectives with EventStreamMarshalling with Sign
 }
 
 
-class FacebookEventPublisher(mediator: ActorRef, fb: FacebookClient, accounts: Accounts, accountView: AccountView, sessionId: String)
-  extends EventPublisher[FacebookAuthEvent](100, 5 seconds) with ActorLogging {
+class FacebookEventPublisher(mediator: ActorRef, fb: FacebookClient, accounts: Accounts, accountView: AccountView, sessionId: String, sseActor: ActorRef)
+  extends Actor with ActorLogging {
 
   val facebookSetting = Settings(context.system).facebook
   var user: Option[Profile] = None
@@ -76,24 +79,20 @@ class FacebookEventPublisher(mediator: ActorRef, fb: FacebookClient, accounts: A
 
   mediator ! DistributedPubSubMediator.Subscribe(sessionId, self)
 
-  override def postStop(): Unit = {
-    mediator ! DistributedPubSubMediator.Unsubscribe(sessionId, self)
-  }
-
-  override protected def receiveEvent: Receive = {
-    case event: FacebookAuthEvent => onEvent(event)
+  override def receive: Receive = {
+    case event: FacebookAuthEvent => sseActor ! event
     case GetAuthUrl(profile) =>
       user = profile
-      onEvent(AuthUrlObtained(fb.authorizationUrl(callback)))
+      sseActor ! AuthUrlObtained(fb.authorizationUrl(callback))
     case AuthCallback(verifier) =>
       fb.verifyCredentials(callback, verifier).flatMap {
         case Left(f) => Future.successful(EventError(f.getMessage))
         case Right(fbUser) => saveOrCreate(fbUser).mapTo[FacebookAuthEvent]
       }.onComplete {
-        case Success(event) => onEvent(event)
+        case Success(event) => sseActor ! event
         case Failure(f) =>
           log.error(s"unable to verify credentials ${f.getMessage}")
-          onEvent(EventError("unable to verify credentials"))
+          sseActor ! EventError("unable to verify credentials")
       }
   }
 
@@ -124,7 +123,7 @@ class FacebookEventPublisher(mediator: ActorRef, fb: FacebookClient, accounts: A
 }
 
 object FacebookEventPublisher {
-  def props(mediator: ActorRef, fb: FacebookClient, accounts: Accounts, accountView: AccountView, sessionId: String) =
-    Props(new FacebookEventPublisher(mediator, fb, accounts, accountView, sessionId))
+  def props(mediator: ActorRef, fb: FacebookClient, accounts: Accounts, accountView: AccountView, sessionId: String, sseActor: ActorRef) =
+    Props(new FacebookEventPublisher(mediator, fb, accounts, accountView, sessionId, sseActor: ActorRef))
 }
 

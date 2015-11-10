@@ -6,12 +6,12 @@ import java.util.UUID
 import akka.actor.Actor
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.server.Directives._
-import akka.stream.FlowMaterializer
+import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import bi.fris.aws.S3Client
 import bi.fris.common._
 import bi.fris.email.EmailSender
-import de.heikoseeberger.akkahttpjsonplay.PlayJsonMarshalling
+import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import org.apache.commons.codec.binary.Base64
 import play.api.libs.json._
 
@@ -50,11 +50,10 @@ trait AccountRoute extends CORSDirectives with ConfirmationToken with Hashing {
   import AccountProtocol._
   import AccountRoute._
   import ErrorMessage._
-  import PlayJsonMarshalling._
 
   def normolize(txt:String)=txt.trim.toLowerCase
 
-  def accountRoute(implicit ec: ExecutionContext, mat: FlowMaterializer, askTimeout: Timeout) = {
+  def accountRoute(implicit ec: ExecutionContext, mat: ActorMaterializer, askTimeout: Timeout) = {
     respondWithCors {
       pathPrefix("account") {
         path("verify_credentials") {

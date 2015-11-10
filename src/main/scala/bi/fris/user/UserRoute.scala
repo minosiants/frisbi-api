@@ -4,7 +4,7 @@ package user
 import akka.actor.Actor
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.server.Directives._
-import akka.stream.FlowMaterializer
+import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import bi.fris.TokenHttpAuthenticationDirectives.TokenAuth._
 import bi.fris.account.AccountProtocol.Profile
@@ -12,7 +12,7 @@ import bi.fris.account.AccountView
 import bi.fris.topic.TopicProtocol.Topic
 import bi.fris.topic.TopicView
 import bi.fris.user.UserRoute.UserData
-import de.heikoseeberger.akkahttpjsonplay.PlayJsonMarshalling
+import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import play.api.libs.json.Json
 
 import scala.async.Async._
@@ -34,8 +34,7 @@ trait UserRoute extends CORSDirectives{
 
 
 
-  def userRoute(implicit ec: ExecutionContext, mat: FlowMaterializer, askTimeout: Timeout ) = {
-    import PlayJsonMarshalling._
+  def userRoute(implicit ec: ExecutionContext, mat: ActorMaterializer, askTimeout: Timeout ) = {
     respondWithCors {
       pathPrefix("users") {
         path("show") {

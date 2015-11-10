@@ -1,13 +1,13 @@
 import sbt._
 
 object Version {
-  val akka                 = "2.3.8"
-  val akkaHttp             = "1.0-RC2"
+  val akka                 = "2.4.0"
+  val akkaHttp             = "2.0-M1"
   val akkaParsing          = "1.0-M2"
-  val akkaPersistence      = "2.3.8"
+  val akkaPersistence      = "2.4-M2"
   val persistenceCassandra = "0.3.5"
-  val akkaPersistenceMongo = "0.7.4"
-  val akkaSse              = "0.12.0"
+  val akkaPersistenceMongo = "0.7.7-SNAPSHOT"
+  val akkaSse              = "1.2.0"
   val play                 = "2.4.0-RC1"
   val logback              = "1.1.2"
   val scala                = "2.11.6"
@@ -23,20 +23,21 @@ object Version {
   val scribe               = "1.3.7"
   val aws                  = "1.9.31"
   val kamon                = "0.3.5"
-  val httpJson             = "0.6.0"
+  val httpJson             = "1.2.0"
 
 }
 
 object Library {
   val akkaActor            = "com.typesafe.akka"        %% "akka-actor"                    % Version.akka               withSources ()
   val akkaContrib          = "com.typesafe.akka"        %% "akka-contrib"                  % Version.akka               withSources ()
+  val akkaCluster          = "com.typesafe.akka"        %% "akka-cluster-sharding"         % Version.akka               withSources ()
   val akkaHttp             = "com.typesafe.akka"        %% "akka-http-core-experimental"   % Version.akkaHttp           withSources ()
-  val akkaHttpSacla        = "com.typesafe.akka"        %% "akka-http-scala-experimental"  % Version.akkaHttp           withSources ()
+  val akkaHttpSacla        = "com.typesafe.akka"        %% "akka-http-experimental"        % Version.akkaHttp           withSources ()
   val akkaStream           = "com.typesafe.akka"        %% "akka-stream-experimental"      % Version.akkaHttp           withSources ()
-  val akkaParsing          = "com.typesafe.akka"        %% "akka-parsing-experimental"     % Version.akkaParsing        withSources ()
+  //val akkaParsing          = "com.typesafe.akka"        %% "akka-parsing-experimental"     % Version.akkaParsing        withSources ()
   val akkaPersistence      = "com.typesafe.akka"        %% "akka-persistence-experimental" % Version.akkaPersistence 
-  val persistenceCassandra = "com.github.krasserm"      %% "akka-persistence-cassandra"    % Version.persistenceCassandra
-  val akkaPersistenceMongo = "com.github.ddevore"       %% "akka-persistence-mongo-casbah" % Version.akkaPersistenceMongo
+  //val persistenceCassandra = "com.github.krasserm"      %% "akka-persistence-cassandra"    % Version.persistenceCassandra
+  val akkaPersistenceMongo = "com.github.ironfish"       %% "akka-persistence-mongo-casbah" % Version.akkaPersistenceMongo
   val akkaSlf4j            = "com.typesafe.akka"        %% "akka-slf4j"                    % Version.akka
   val akkaTestkit          = "com.typesafe.akka"        %% "akka-testkit"                  % Version.akka
   val logbackClassic       = "ch.qos.logback"           %  "logback-classic"               % Version.logback
@@ -52,12 +53,12 @@ object Library {
   val aws                  = "com.amazonaws"            % "aws-java-sdk"                   % Version.aws
   val kamonCore            = "io.kamon"                %% "kamon-core"                     % Version.kamon
   val kamonDatadog         = "io.kamon"                %% "kamon-datadog"                  % Version.kamon
-  val kamonSpray           = "io.kamon"                %% "kamon-spray"                    % Version.kamon
+  //val kamonSpray           = "io.kamon"                %% "kamon-spray"                    % Version.kamon
   val kamonSystemMetrics   = "io.kamon"                %% "kamon-system-metrics"           % Version.kamon
   val kamonAkkaRemote      = "io.kamon"                %% "kamon-akka-remote"              % Version.kamon
   val kamonLogReporter     = "io.kamon"                %% "kamon-log-reporter"             % Version.kamon
-  val httpJson             = "de.heikoseeberger"       %% "akka-http-json-play"            %  Version.httpJson
-  val playJson             = "com.typesafe.play"       %% "play-json"                      % Version.play
+  val httpJson             = "de.heikoseeberger"       %% "akka-http-play-json"            %  Version.httpJson
+ // val playJson             = "com.typesafe.play"       %% "play-json"                      % Version.play
   val akkaSse              = "de.heikoseeberger"       %% "akka-sse"                       % Version.akkaSse            withSources ()
 
 

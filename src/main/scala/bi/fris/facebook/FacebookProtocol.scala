@@ -30,7 +30,7 @@ object FacebookProtocol {
   implicit val eventErrorFormat = Json.format[EventError]
   implicit val facebookUserFormat = Json.format[FacebookUser]
 
-  implicit def flowEventToServerSentEvent(event: FacebookAuthEvent): ServerSentEvent =
+  def flowEventToServerSentEvent(event: FacebookAuthEvent): ServerSentEvent =
     event match {
       case url:AuthUrlObtained =>
         ServerSentEvent(Json.toJson(url).toString(), "fb-auth-url")

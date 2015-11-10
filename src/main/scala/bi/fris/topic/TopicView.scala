@@ -3,12 +3,11 @@ package topic
 
 import scala.concurrent.{ExecutionContext, Future}
 import akka.actor.{Actor, ActorLogging, ActorRef, ExtendedActorSystem, Extension, ExtensionKey, Props}
-import akka.stream.FlowMaterializer
 import akka.stream.scaladsl.Source
 import bi.fris.common.TextExtractor
 import com.github.nscala_time.time.Imports.DateTime
 import TopicProtocol._
-import akka.stream.ActorFlowMaterializer
+import akka.stream.ActorMaterializer
 
 
 
@@ -16,7 +15,7 @@ object TopicsConsumer extends ExtensionKey[TopicsConsumer]
 
 class TopicsConsumer (protected val system: ExtendedActorSystem) extends Extension with Sharding {
   
-   implicit val materializer = ActorFlowMaterializer()(system)
+   implicit val materializer = ActorMaterializer()(system)
     def consume(source: Source[TopicEvent, Unit])(implicit sender: ActorRef) {
     source.runForeach { x =>
       tellEntry("Topics", x)

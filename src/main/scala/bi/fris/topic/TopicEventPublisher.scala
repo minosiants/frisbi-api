@@ -2,7 +2,7 @@ package bi.fris
 package topic
 
 import akka.actor.{ ActorLogging, Props }
-import akka.contrib.pattern.{ DistributedPubSubExtension, DistributedPubSubMediator }
+import akka.cluster.pubsub.{DistributedPubSub, DistributedPubSubMediator}
 import akka.stream.actor.{ ActorPublisher, ActorPublisherMessage }
 import TopicProtocol._
 
@@ -12,7 +12,7 @@ object TopicEventPublisher {
 
 class TopicEventPublisher extends ActorPublisher[TopicEvent] with ActorLogging {
 
-  private val mediator = DistributedPubSubExtension(context.system).mediator
+  private val mediator = DistributedPubSub(context.system).mediator
   mediator ! DistributedPubSubMediator.Subscribe(TopicEventKey, self)
   log.debug("Subscribed to TopicEvent events")
 

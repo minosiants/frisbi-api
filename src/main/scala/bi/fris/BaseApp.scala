@@ -4,7 +4,8 @@ import akka.actor.ActorSystem
 import akka.cluster.Cluster
 import akka.event.{ Logging, LoggingAdapter }
 import scala.collection.breakOut
-
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
 object BaseApp {
 
   private val opt = """-D(\S+)=(\S+)""".r
@@ -32,7 +33,8 @@ abstract class BaseApp[A] {
       log.info("App up and running")
     }
 
-    system.awaitTermination()
+    Await.ready(system.whenTerminated, Duration.Inf)
+
   }
 
   def run(system: ActorSystem, log: LoggingAdapter): Unit

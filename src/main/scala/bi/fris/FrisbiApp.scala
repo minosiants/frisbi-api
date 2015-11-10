@@ -33,7 +33,7 @@ class HttpServerSup extends Actor with ActorLogging with SettingsActor {
   override def receive: Receive = {
     case Terminated(ref) =>
       log.warning("Shutting down, because {} has terminated!", ref.path)
-      context.system.shutdown()
+      context.system.terminate()
   }
   protected def createHttpService(): ActorRef = {
     import settings.httpService._

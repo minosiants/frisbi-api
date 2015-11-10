@@ -29,7 +29,7 @@ object TwitterProtocol {
   implicit val usernameIsTakenFormat = Json.format[UsernameIsTaken]
   implicit val eventErrorFormat = Json.format[EventError]
 
-  implicit def flowEventToServerSentEvent(event: TwitterAuthEvent): ServerSentEvent =
+  def flowEventToServerSentEvent(event: TwitterAuthEvent): ServerSentEvent =
     event match {
       case url:AuthUrlObtained =>
         ServerSentEvent(Json.toJson(url).toString(), "twitter-auth-url")

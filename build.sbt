@@ -6,15 +6,16 @@ version := "1.0"
 
 libraryDependencies ++= List(
   Library.akkaContrib,
-  Library.akkaParsing,
+  //Library.akkaParsing,
   Library.akkaHttp,
   Library.akkaHttpSacla,
   Library.akkaStream,
   Library.akkaPersistence,
   Library.akkaPersistenceMongo,
+  Library.akkaCluster,
   Library.akkaSse,
   Library.httpJson,
-  Library.playJson,
+ // Library.playJson,
   Library.akkaSlf4j,
   Library.commonsCodec,
   Library.auth0JavaJwt,
@@ -28,7 +29,7 @@ libraryDependencies ++= List(
   Library.aws,
   Library.kamonCore,
   Library.kamonDatadog,
-  Library.kamonSpray,
+//  Library.kamonSpray,
   Library.kamonAkkaRemote,
   Library.kamonLogReporter,
   Library.akkaTestkit % "test",
@@ -36,12 +37,12 @@ libraryDependencies ++= List(
 )
 
 resolvers ++= List(
-  Resolver.hseeberger,
+  Resolver.sonatypeRel,
+  Resolver.sonatypeSnap,
   Resolver.atlassian,
   Resolver.anormcypher,
   Resolver.akkaSnapshot,
-  Resolver.sonatypeSnap,
-  Resolver.sonatypeRel,
+  Resolver.hseeberger,
   Resolver.kamon
 )
 	  	  

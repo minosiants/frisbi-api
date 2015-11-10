@@ -1,25 +1,20 @@
 package bi.fris
 package twitter
 
-import java.util.Date
-
 import akka.actor._
-import akka.contrib.pattern.{DistributedPubSubExtension, DistributedPubSubMediator}
+import akka.cluster.pubsub.{DistributedPubSub, DistributedPubSubMediator}
 import akka.http.scaladsl.model.StatusCodes._
-import akka.http.scaladsl.model.{ContentType, HttpEntity, HttpResponse, MediaTypes}
 import akka.http.scaladsl.server.Directives._
-import akka.stream.FlowMaterializer
-import akka.stream.actor.ActorPublisher
 import akka.stream.scaladsl.Source
+import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.util.Timeout
 import bi.fris.TokenHttpAuthenticationDirectives.TokenAuth._
 import bi.fris.account.AccountProtocol._
 import bi.fris.account.{AccountView, Accounts}
 import bi.fris.twitter.TwitterProtocol._
-import de.heikoseeberger.akkahttpjsonplay.PlayJsonMarshalling._
-import de.heikoseeberger.akkasse.{EventPublisher, EventStreamMarshalling, ServerSentEvent}
+import de.heikoseeberger.akkasse.{EventStreamMarshalling, WithHeartbeats}
 import play.api.libs.json._
-
+import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
@@ -30,7 +25,7 @@ trait TwitterRoute extends CORSDirectives with EventStreamMarshalling with Signa
   import common.Html._
 
   private val twitterSetting = Settings(context.system).twitter
-  private val mediator = DistributedPubSubExtension(context.system).mediator
+  private val mediator = DistributedPubSub(context.system).mediator
   private val twitterClient = TwitterClient(context.system)
   private val accounts = Accounts(context.system)
   private val accountView = AccountView(context.system)
@@ -43,7 +38,7 @@ trait TwitterRoute extends CORSDirectives with EventStreamMarshalling with Signa
   implicit val statusUpdateFormat = Json.format[StatusUpdate]
 
 
-  def twitterRoute(implicit ec: ExecutionContext, mat: FlowMaterializer, askTimeout: Timeout) = {
+  def twitterRoute(implicit ec: ExecutionContext, mat: ActorMaterializer, askTimeout: Timeout) = {
     respondWithCors {
       path("twitter" / "authorization") {
         optionsForCors ~
@@ -58,9 +53,12 @@ trait TwitterRoute extends CORSDirectives with EventStreamMarshalling with Signa
           get {
             parameters('sessionId) { sessionId =>
               complete {
-                Source(ActorPublisher[ServerSentEvent](
-                  context.actorOf(TwitterEventPublisher.props(mediator, twitterClient, accounts, accountView, sessionId)))
-                )
+                Source.actorRef[TwitterAuthEvent](100, OverflowStrategy.dropHead)
+                  .map(TwitterProtocol.flowEventToServerSentEvent)
+                  .via(WithHeartbeats(5.second))
+                  .mapMaterializedValue(source =>
+                    context.actorOf(TwitterEventPublisher.props(mediator, twitterClient, accounts, accountView, sessionId, source))
+                  )
               }
             }
           }
@@ -97,8 +95,7 @@ trait TwitterRoute extends CORSDirectives with EventStreamMarshalling with Signa
 
 }
 
-class TwitterEventPublisher(mediator: ActorRef, twitter: TwitterClient, accounts: Accounts, accountView: AccountView, sessionId: String)
-  extends EventPublisher[TwitterAuthEvent](100, 5 seconds) with ActorLogging {
+class TwitterEventPublisher(mediator: ActorRef, twitter: TwitterClient, accounts: Accounts, accountView: AccountView, sessionId: String, sseActor:ActorRef) extends Actor with ActorLogging {
 
   import TwitterProtocol._
 
@@ -110,21 +107,18 @@ class TwitterEventPublisher(mediator: ActorRef, twitter: TwitterClient, accounts
 
   mediator ! DistributedPubSubMediator.Subscribe(sessionId, self)
 
-  override def postStop(): Unit = {
-    mediator ! DistributedPubSubMediator.Unsubscribe(sessionId, self)
-  }
 
-  override def receiveEvent = {
-    case event: TwitterAuthEvent => onEvent(event)
+  override def receive = {
+    case event: TwitterAuthEvent => sseActor ! event
 
     case GetAuthUrl(profile) =>
       user = profile
       twitter.requestToken(s"${twitterSetting.auth_callback}?sessionId=$sessionId").onComplete {
         case Success((t, url)) =>
           requestToken = Some((t.getToken, t.getSecret))
-          onEvent(AuthUrlObtained(url))
+          sseActor ! AuthUrlObtained(url)
         case Failure(f) =>
-          onEvent(EventError(f.getMessage))
+          sseActor !  EventError(f.getMessage)
       }
     case AuthCallback(token, verifier) =>
       val secret = requestToken.get._2
@@ -132,10 +126,10 @@ class TwitterEventPublisher(mediator: ActorRef, twitter: TwitterClient, accounts
         case Left(f) => Future.successful(EventError(f.getMessage))
         case Right(twitterUser) => saveOrCreate(twitterUser).mapTo[TwitterAuthEvent]
       }.onComplete {
-        case Success(event) => onEvent(event)
+        case Success(event) => sseActor ! event
         case Failure(f) =>
           log.error(s"unable to verify credentials ${f.getMessage}")
-          onEvent(EventError("unable to verify credentials"))
+          sseActor ! EventError("unable to verify credentials")
       }
 
   }
@@ -168,6 +162,6 @@ object TwitterEventPublisher {
 
   case class TwitterAuthSession(sessionId: String, ssePublisher: ActorRef, user: Option[Profile] = None, token: Option[TwitterToken] = None)
 
-  def props(mediator: ActorRef, twitterClient: TwitterClient, accounts: Accounts, accountView: AccountView, sessionId: String) =
-    Props(new TwitterEventPublisher(mediator, twitterClient, accounts, accountView, sessionId))
+  def props(mediator: ActorRef, twitterClient: TwitterClient, accounts: Accounts, accountView: AccountView, sessionId: String, sseActor:ActorRef) =
+    Props(new TwitterEventPublisher(mediator, twitterClient, accounts, accountView, sessionId, sseActor))
 }

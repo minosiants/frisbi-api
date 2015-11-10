@@ -5,7 +5,9 @@ import akka.actor.{Actor, ActorRef}
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.server.Directives._
 import akka.pattern.ask
-import akka.stream.FlowMaterializer
+import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.Source
+
 import akka.util.Timeout
 import bi.fris.TokenHttpAuthenticationDirectives.TokenAuth._
 import bi.fris.common.ErrorMessage._
@@ -13,8 +15,9 @@ import bi.fris.common.FutureO
 import bi.fris.signalling.Peers.{CreatePeerEventSource, GetPeer, GetPeersOfTopic}
 import bi.fris.signalling.TopicSignallingProtocol._
 import bi.fris.topic.Topics
-import de.heikoseeberger.akkahttpjsonplay.PlayJsonMarshalling
-import de.heikoseeberger.akkasse.{EventStreamMarshalling, ServerSentEventSource}
+import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
+
+import de.heikoseeberger.akkasse.{ServerSentEvent, EventStreamMarshalling}
 
 import scala.concurrent.ExecutionContext
 
@@ -23,13 +26,13 @@ object TopicSignallingRoute {
   type PeerSocketOL = Option[List[PeerSocket]]
 }
 
-trait TopicSignallingRoute extends CORSDirectives with EventStreamMarshalling with JSONWebToken {
+trait TopicSignallingRoute extends CORSDirectives with JSONWebToken {
   this: Actor =>
 
-  import PlayJsonMarshalling._
+  import PlayJsonSupport._
   import TopicSignallingRoute._
 
-  def topicSignallingRoute(peers:ActorRef)(implicit ec: ExecutionContext, mat: FlowMaterializer, askTimeout: Timeout) = {
+  def topicSignallingRoute(peers:ActorRef)(implicit ec: ExecutionContext, mat: ActorMaterializer, askTimeout: Timeout) = {
     respondWithCors {
       pathPrefix("signalling" / "topics" / Segment) { topicId =>
         path("offer") {
@@ -118,7 +121,8 @@ trait TopicSignallingRoute extends CORSDirectives with EventStreamMarshalling wi
   }
 
 
-  def topicSignallingSseRoute(peers:ActorRef)(implicit ec: ExecutionContext, mat: FlowMaterializer, askTimeout: Timeout) = {
+  def topicSignallingSseRoute(peers:ActorRef)(implicit ec: ExecutionContext, mat: ActorMaterializer, askTimeout: Timeout) = {
+    import EventStreamMarshalling._
     respondWithCors {
       path("signalling" / "topics" / "sse" / Segment) { topicId =>
         optionsForCors ~
@@ -127,7 +131,7 @@ trait TopicSignallingRoute extends CORSDirectives with EventStreamMarshalling wi
               onSuccess(decodeF(token)) {
                 case Some(username) => {
                   complete {
-                    (peers ? CreatePeerEventSource(peerId, username, topicId)).mapTo[ServerSentEventSource]
+                    (peers ? CreatePeerEventSource(peerId, username, topicId)).mapTo[Source[ServerSentEvent, Any]]
                   }
                 }
                 case None => complete(Invalid_Token)

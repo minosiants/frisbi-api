@@ -55,7 +55,7 @@ trait TopicSignallingProtocol {
 
   implicit val peerJoinedFormat = Json.writes[PeerJoined]
 
-  implicit def flowEventToServerSentEvent(event: SignallingEvent): ServerSentEvent =
+  def flowEventToServerSentEvent(event: SignallingEvent): ServerSentEvent =
     event match {
       case offer: MakeOffer =>
         ServerSentEvent(Json.toJson(offer).toString(), "offer")

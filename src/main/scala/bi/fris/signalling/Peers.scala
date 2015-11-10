@@ -1,14 +1,15 @@
 package bi.fris
 package signalling
 
-import akka.actor.{ActorRef, ActorLogging, Actor, Props}
-import akka.stream.actor.ActorPublisher
+import akka.actor._
+import akka.stream.OverflowStrategy
 import akka.stream.scaladsl.Source
-import scala.concurrent.duration.DurationInt
 import akka.util.Timeout
 import bi.fris.signalling.TopicSignallingProtocol._
 import bi.fris.topic.Topics
-import de.heikoseeberger.akkasse.{EventPublisher, ServerSentEvent}
+import de.heikoseeberger.akkasse.WithHeartbeats
+
+import scala.concurrent.duration.DurationInt
 
 
 object Peers {
@@ -24,7 +25,7 @@ object Peers {
   def topicPeers(joinedPeer: PeerId, topicId: String)(p: PeerSocket) = {
     p.peerId != joinedPeer && p.topicId == topicId
   }
-
+  case class RemovePublisher(peerId:String)
   sealed trait PeerEvent
   case class CreatePeerEventSource(peerId:String, username:String, topicId:String) extends PeerEvent
   case class GetPeer(peerId:String) extends PeerEvent
@@ -44,9 +45,19 @@ class Peers extends Actor with ActorLogging{
       ps.map { p =>
         peers -= p.peerId
       }
-      val publisher = context.actorOf(TopicSignallingEventPublisher.props(peerId, self))
-      peers += peerId -> PeerSocket(peerId, username, publisher, topicId)
-      sender() ! Source(ActorPublisher[ServerSentEvent](publisher))
+
+      sender() ! Source.actorRef[SignallingEvent](100, OverflowStrategy.dropHead)
+        .map(TopicSignallingProtocol.flowEventToServerSentEvent)
+        .via(WithHeartbeats(5.second))
+        .mapMaterializedValue(source =>  {
+          peers += peerId -> PeerSocket(peerId, username, context.watch(source), topicId)
+        })
+
+
+    }
+    case Terminated(ref) => {
+      context.unwatch(ref)
+      peers.values find(ps => ps.ssePublisher == ref) foreach(ps => removePublisher(ps.peerId))
     }
     case GetPeersOfTopic(topicId, without) => {
 
@@ -56,30 +67,20 @@ class Peers extends Actor with ActorLogging{
     case GetPeer(peerId) =>  {
       sender() ! peers.get(peerId)
     }
-    case TopicSignallingEventPublisher.RemovePublisher(peerId) =>  {
-      peers.get(peerId).map{pc =>
-        Topics(context.system).deleteParticipant(pc.topicId, pc.username)
-      }
-      peers -= peerId
+    case RemovePublisher(peerId) =>  {
+      removePublisher(peerId)
     }
+
    // case Update
 
   }
-}
 
-class TopicSignallingEventPublisher(peerId:String, owner:ActorRef) extends EventPublisher[SignallingEvent](100, 5 seconds ) with ActorLogging {
-  import TopicSignallingEventPublisher._
-
-  override def receiveEvent = {
-    case event: SignallingEvent => onEvent(event)
-  }
-  override def postStop(): Unit = {
-    owner ! RemovePublisher(peerId)
+  private def removePublisher(peerId:String): Unit = {
+    peers.get(peerId).map{pc =>
+      Topics(context.system).deleteParticipant(pc.topicId, pc.username)
+    }
+    peers -= peerId
   }
 
-}
 
-object TopicSignallingEventPublisher {
-  case class RemovePublisher(peerId:String)
-  def props(peerId:String, parent:ActorRef) = Props(new TopicSignallingEventPublisher(peerId, parent))
 }

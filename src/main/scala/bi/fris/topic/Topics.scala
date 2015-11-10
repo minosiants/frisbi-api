@@ -2,8 +2,8 @@ package bi.fris
 package topic
 
 import akka.actor.{ActorLogging, ActorRef, ExtendedActorSystem, Extension, ExtensionKey, Props, actorRef2Scala}
-import akka.contrib.pattern.{DistributedPubSubExtension, DistributedPubSubMediator}
-import akka.persistence.{PersistenceFailure, PersistentActor, SaveSnapshotFailure, SaveSnapshotSuccess}
+import akka.cluster.pubsub.{DistributedPubSub, DistributedPubSubMediator}
+import akka.persistence.{PersistentActor, SaveSnapshotFailure, SaveSnapshotSuccess}
 import akka.stream.actor.ActorPublisher
 import akka.stream.scaladsl.Source
 import akka.util.Timeout
@@ -53,7 +53,7 @@ class TopicPersistent extends PersistentActor with ActorLogging {
 
   override def persistenceId: String = self.path.parent.name + "-" + self.path.name
 
-  private val mediator = DistributedPubSubExtension(context.system).mediator
+  private val mediator = DistributedPubSub(context.system).mediator
 
   context.setReceiveTimeout(2.minutes)
 
@@ -85,8 +85,7 @@ class TopicPersistent extends PersistentActor with ActorLogging {
       println(s"snapshot saved (metadata = $md)")
     case SaveSnapshotFailure(md, e) =>
       println(s"snapshot saving failed (metadata = $md, error = ${e.getMessage})")
-    case PersistenceFailure(payload, snr, e) =>
-      println(s"persistence failed (payload = $payload, sequenceNr = $snr, error = ${e.getMessage})")
+
   }
   override def receiveRecover = {
     case evt: TopicEvent => {

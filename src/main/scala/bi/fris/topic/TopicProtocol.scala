@@ -57,7 +57,7 @@ object TopicProtocol {
   implicit val topicDeletedFormat = Json.format[TopicDeleted]
 
 
-  implicit def flowTopicEventToServerSentEvent(event: TopicEvent): ServerSentEvent =
+  def flowTopicEventToServerSentEvent(event: TopicEvent): ServerSentEvent =
     event match {
       case t:TopicCreated =>
         ServerSentEvent(Json.toJson(t.topic).toString(), "topic-created")

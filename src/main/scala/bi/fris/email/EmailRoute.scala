@@ -2,7 +2,7 @@ package bi.fris
 package email
 
 import akka.actor.Actor
-import akka.stream.FlowMaterializer
+import akka.stream.ActorMaterializer
 import TokenHttpAuthenticationDirectives.TokenAuth._
 import play.api.libs.json.Json
 import akka.http.scaladsl.model.StatusCodes._
@@ -11,7 +11,7 @@ import akka.http.scaladsl.server.Directives._
 import bi.fris.common.Validation
 
 import scala.concurrent.ExecutionContext
-import de.heikoseeberger.akkahttpjsonplay.PlayJsonMarshalling._
+import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 
 object EmailRoute {
 
@@ -28,7 +28,7 @@ trait EmailRoute extends CORSDirectives {
   import EmailRoute._
   import context.dispatcher
 
-  def emailRoute(implicit ec: ExecutionContext, mat: FlowMaterializer) = {
+  def emailRoute(implicit ec: ExecutionContext, mat: ActorMaterializer) = {
     respondWithCors {
       path("email" / "share" / "topic") {
         optionsForCors ~

@@ -3,30 +3,25 @@ package topic
 
 import java.util.UUID
 
-import akka.actor.{Props, ActorLogging, ActorRef, Actor}
-import akka.contrib.pattern.{DistributedPubSubExtension, DistributedPubSubMediator}
+import akka.actor.Actor
+import akka.cluster.pubsub.{DistributedPubSub, DistributedPubSubMediator}
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.server.Directives._
-import akka.stream.FlowMaterializer
-import akka.stream.actor.ActorPublisher
 import akka.stream.scaladsl.Source
+import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.util.Timeout
 import bi.fris.TokenHttpAuthenticationDirectives.TokenAuth._
-import bi.fris.account.AccountProtocol.Profile
 import bi.fris.aws.S3Client
 import bi.fris.common.ErrorMessage._
 import bi.fris.common.Validation
-import bi.fris.signalling.Peers.CreatePeerEventSource
-import bi.fris.signalling.TopicSignallingEventPublisher.RemovePublisher
-import bi.fris.signalling.TopicSignallingProtocol.SignallingEvent
 import bi.fris.topic.TopicProtocol._
-import de.heikoseeberger.akkahttpjsonplay.PlayJsonMarshalling
+import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import de.heikoseeberger.akkasse._
 import org.apache.commons.codec.binary.Base64
 import play.api.libs.json.Json
 
 import scala.concurrent.{ExecutionContext, Future}
-
+import EventStreamMarshalling._
 object TopicRoute {
 
   case class CreateTopicReq(id: String, title: String, secret:Boolean) extends Validation {
@@ -47,13 +42,12 @@ object TopicRoute {
   implicit val patchTopicReqFormat = Json.format[PatchTopicReq]
 }
 
-trait TopicsRoute extends CORSDirectives with EventStreamMarshalling{
+trait TopicsRoute extends CORSDirectives {
   this: Actor =>
 
-  import PlayJsonMarshalling._
   import TopicRoute._
 
-  def topicsRoute(implicit ec: ExecutionContext, mat: FlowMaterializer, askTimeout: Timeout) = {
+  def topicsRoute(implicit ec: ExecutionContext, mat: ActorMaterializer, askTimeout: Timeout) = {
     respondWithCors {
       pathPrefix("topics") {
         pathEndOrSingleSlash {
@@ -136,8 +130,13 @@ trait TopicsRoute extends CORSDirectives with EventStreamMarshalling{
       }
     }
   }
-  private val mediator = DistributedPubSubExtension(context.system).mediator
-  def topicsStreamingRoute(implicit ec: ExecutionContext, mat: FlowMaterializer, askTimeout: Timeout) = {
+
+  private val mediator = DistributedPubSub(context.system).mediator
+
+  def topicsStreamingRoute(implicit ec: ExecutionContext, mat: ActorMaterializer, askTimeout: Timeout) = {
+
+
+    import scala.concurrent.duration.DurationInt
 
     respondWithCors {
       path("streaming"/"topics") {
@@ -145,8 +144,11 @@ trait TopicsRoute extends CORSDirectives with EventStreamMarshalling{
           get {
             tokenAuthO(ec) { user =>
               complete {
-                Source(ActorPublisher[ServerSentEvent](
-                  context.actorOf(TopicsEventPublisher.props(mediator, user))))
+                Source.actorRef[TopicEvent](100, OverflowStrategy.dropHead)
+                .map(TopicProtocol.flowTopicEventToServerSentEvent)
+                .via(WithHeartbeats(5.second))
+                .mapMaterializedValue(source =>  mediator ! DistributedPubSubMediator.Subscribe(TopicEventKey, source))
+
               }
             }
           }
@@ -155,24 +157,6 @@ trait TopicsRoute extends CORSDirectives with EventStreamMarshalling{
   }
 }
 
-import scala.concurrent.duration.DurationInt
-
-class TopicsEventPublisher(mediator: ActorRef, user:Option[Profile]) extends EventPublisher[TopicEvent](100, 5 seconds ) with ActorLogging {
-
-  mediator ! DistributedPubSubMediator.Subscribe(TopicEventKey, self)
-
-  override def receiveEvent = {
-    case event: TopicEvent => onEvent(event)
-  }
-  override def postStop(): Unit = {
-    mediator ! DistributedPubSubMediator.Unsubscribe(TopicEventKey, self)
-  }
-
-}
-
-object TopicsEventPublisher {
-  def props(mediator: ActorRef, user:Option[Profile]) = Props(new TopicsEventPublisher(mediator, user))
-}
 
 //curl 'http://localhost:8080/topics/'  -H 'Authorization: talkopedia sgdfgdfgdg'
 

@@ -1,9 +1,8 @@
 package bi.fris
 
-import de.heikoseeberger.akkalog4j.Log4jLogger
-import org.apache.logging.log4j.LogManager
+import akka.event.slf4j.Logger
 
 
 trait Logging1 {
-  lazy val logger = LogManager.getLogger(this.getClass.getName)
+  lazy val logger = Logger(this.getClass.getName)
 }

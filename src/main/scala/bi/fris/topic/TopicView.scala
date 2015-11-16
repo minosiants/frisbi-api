@@ -27,6 +27,7 @@ class TopicsConsumer (protected val system: ExtendedActorSystem) extends Extensi
 } 
 
 class TopicConsumer extends TopicRepository with TextExtractor with Actor with ActorLogging {
+  import context.dispatcher
   override def receive: Receive = {
     case TopicCreated(topic) => {
       createTopic(topic)

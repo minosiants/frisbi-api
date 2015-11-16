@@ -13,7 +13,7 @@ import scala.concurrent.Future
 import account.AccountProtocol.Profile
 
 trait TopicRepository extends Neo4jClient with Logging1 {
-  def createTopic(topic: Topic) = {
+  def createTopic(topic: Topic)(implicit ec: ExecutionContext) = {
     val q = s"""
            MATCH(author:User{username:"${topic.author.username}"})
            CREATE (
@@ -31,7 +31,7 @@ trait TopicRepository extends Neo4jClient with Logging1 {
     query(q).execute()
   }
 
-  def addTags(topicId: String, tags: Seq[String], author: String) = {
+  def addTags(topicId: String, tags: Seq[String], author: String)(implicit ec: ExecutionContext) = {
     val q = s"""MATCH(topic:Topic{id:"$topicId"})(user:User{username:"$author"})
                  ${
       tags.map { x =>
@@ -48,7 +48,7 @@ trait TopicRepository extends Neo4jClient with Logging1 {
     query(q).execute()
   }
 
-  def deleteTag(topicId: String, tag: String, author: String) = {
+  def deleteTag(topicId: String, tag: String, author: String)(implicit ec: ExecutionContext) = {
     val q = s"""
         MATCH(tag:Tag{name:"$tag"})-[d:DESCRIBES]->(topic:Topic{id:"$topicId"),
              (tag:Tag{name:"$tag"})-[b:BELONGS]->(user:User{username:"$author"})
@@ -58,7 +58,7 @@ trait TopicRepository extends Neo4jClient with Logging1 {
     query(q).execute()
   }
 
-  def deleteTopic(id: String, update_at: DateTime) = {
+  def deleteTopic(id: String, update_at: DateTime)(implicit ec: ExecutionContext) = {
     val q = s"""
            MATCH(topic:Topic{id:"$id"}),(deleted_topics:Group{name:"deleted_topics"})
            SET topic.update_at=${update_at.getMillis}
@@ -68,7 +68,7 @@ trait TopicRepository extends Neo4jClient with Logging1 {
     query(q).execute()
   }
 
-  def addParticipant(id: String, username: String, timestamp: DateTime) = {
+  def addParticipant(id: String, username: String, timestamp: DateTime)(implicit ec: ExecutionContext) = {
     val q = s"""
           MATCH (topic:Topic {id:"$id"} ), (u:User {username:"$username"} )
           MERGE (topic)<-[p:IS_PARTICIPANT]-(u)
@@ -81,7 +81,7 @@ trait TopicRepository extends Neo4jClient with Logging1 {
     query(q).execute()
   }
 
-  def removeParticipant(id: String, username: String, timestamp: DateTime) = {
+  def removeParticipant(id: String, username: String, timestamp: DateTime)(implicit ec: ExecutionContext) = {
     val q = s"""
           OPTIONAL MATCH (topic:Topic {id:"$id"} )<-[p:IS_PARTICIPANT]-(u:User{username:"$username"})
           SET p.active = false
@@ -165,7 +165,7 @@ trait TopicRepository extends Neo4jClient with Logging1 {
     query(q) as topicParser.*
   }
 
-  def updateBackground(id: String, url: String, timestamp: DateTime): Unit = {
+  def updateBackground(id: String, url: String, timestamp: DateTime)(implicit ec: ExecutionContext): Unit = {
     val q = s"""
                MATCH (topic:Topic{id:"$id"})
                MERGE (topic)-[:HAS_BACKGROUND]->(b:Background)
